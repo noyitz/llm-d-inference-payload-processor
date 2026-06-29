@@ -169,7 +169,7 @@ func (s *Server) runResponseChunkProcessors(ctx context.Context, cycleState *plu
 			verboseLogger.Info("Executing response chunk plugin", "plugin", cp.TypedName())
 		}
 		before := time.Now()
-		err := cp.ProcessResponseChunk(ctx, cycleState, response, response.CurrentChunk, isFinal)
+		err := cp.ProcessResponseChunk(ctx, cycleState, response, isFinal)
 		metrics.RecordPluginProcessingLatency(responsePluginExtensionPoint, cp.TypedName().Type, cp.TypedName().Name, time.Since(before))
 		if err != nil {
 			return err
