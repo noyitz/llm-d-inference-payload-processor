@@ -191,9 +191,21 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 			if len(requestBody) > 262144 {
 				logger.Info("REQUEST BODY INTEGRITY", "totalBytes", len(requestBody), "fnv32", forensicChunkRecord(0, requestBody), "numChunks", len(chunkForensics))
 			}
-			responses, err = s.HandleRequestBody(ctx, reqCtx, requestBody)
-			if err != nil {
-				logForensics(logger, reqCtx, requestBody, chunkForensics)
+			// Integrity gate: Envoy (>=1.35) can drop a 16KiB unit mid-stream on
+			// large FULL_DUPLEX bodies. Forwarding the corrupted body poisons the
+			// upstream call (e.g. broken base64 images). Fail with a retryable 503
+			// instead so clients transparently retry a clean stream.
+			if cl := requestContentLength(reqCtx); cl > 0 && cl != len(requestBody) {
+				logger.Info("REQUEST BODY LENGTH MISMATCH — rejecting as retryable",
+					"contentLength", cl, "received", len(requestBody),
+					"deficit", cl-len(requestBody), "chunkMap", chunkForensics)
+				err = errcommon.Error{Code: errcommon.ServiceUnavailable,
+					Msg: "request body integrity check failed (transport chunk loss), please retry"}
+			} else {
+				responses, err = s.HandleRequestBody(ctx, reqCtx, requestBody)
+				if err != nil {
+					logForensics(logger, reqCtx, requestBody, chunkForensics)
+				}
 			}
 			loggerVerbose.Info("processing request body complete")
 		case *extProcPb.ProcessingRequest_RequestTrailers:

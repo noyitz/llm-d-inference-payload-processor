@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"strconv"
 
 	"github.com/go-logr/logr"
 )
@@ -89,4 +90,20 @@ func logForensics(logger logr.Logger, reqCtx *RequestContext, body []byte, chunk
 
 	kv = append(kv, "chunkMap", chunks)
 	logger.Info("REQUEST BODY FORENSICS", kv...)
+}
+
+// requestContentLength returns the declared Content-Length of the request, or 0.
+func requestContentLength(reqCtx *RequestContext) int {
+	if reqCtx == nil || reqCtx.Request == nil {
+		return 0
+	}
+	cl := reqCtx.Request.Headers["content-length"]
+	if cl == "" {
+		cl = reqCtx.Request.Headers["Content-Length"]
+	}
+	n, err := strconv.Atoi(cl)
+	if err != nil {
+		return 0
+	}
+	return n
 }
