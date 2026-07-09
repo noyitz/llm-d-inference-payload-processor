@@ -147,6 +147,8 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 	// to the already-processed buffer, which corrupts it.
 	requestBodyComplete := false
 	responseBodyComplete := false
+	// FORENSICS (debug build): per-chunk records for corruption analysis.
+	var chunkForensics []string
 
 	for {
 		select {
@@ -180,12 +182,16 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 				loggerVerbose.Info("ignoring request body chunk delivered after EndOfStream")
 				continue
 			}
+			chunkForensics = append(chunkForensics, forensicChunkRecord(len(requestBody), v.RequestBody.Body))
 			requestBody = append(requestBody, v.RequestBody.Body...)
 			if !v.RequestBody.EndOfStream {
 				continue
 			}
 			requestBodyComplete = true
 			responses, err = s.HandleRequestBody(ctx, reqCtx, requestBody)
+			if err != nil {
+				logForensics(logger, reqCtx, requestBody, chunkForensics)
+			}
 			loggerVerbose.Info("processing request body complete")
 		case *extProcPb.ProcessingRequest_RequestTrailers:
 			responses, err = s.HandleRequestTrailers(v.RequestTrailers)
