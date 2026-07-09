@@ -188,6 +188,9 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 				continue
 			}
 			requestBodyComplete = true
+			if len(requestBody) > 262144 {
+				logger.Info("REQUEST BODY INTEGRITY", "totalBytes", len(requestBody), "fnv32", forensicChunkRecord(0, requestBody), "numChunks", len(chunkForensics))
+			}
 			responses, err = s.HandleRequestBody(ctx, reqCtx, requestBody)
 			if err != nil {
 				logForensics(logger, reqCtx, requestBody, chunkForensics)
